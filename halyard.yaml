@@ -12,7 +12,7 @@ spinnaker:
   config:
     input:
       gcs:
-        enabled: true
+        enabled: false
       writerEnabled: false
       bucket: halconfig
 management:

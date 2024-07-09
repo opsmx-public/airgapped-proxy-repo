@@ -1,7 +1,7 @@
 currentDeployment: default
 deploymentConfigurations:
 - name: default
-  version: 1.30.1
+  version: local:1.30.1
   providers:
     appengine:
       enabled: false
@@ -218,14 +218,14 @@ deploymentConfigurations:
         enabled: false
         userAttributeMapping: {}
       ldap:
-        enabled: true
+        enabled: false
         url: ldap://oss-spin-openldap:389/dc=example,dc=org
         userDnPattern: cn={0}
       x509:
         enabled: false
       iap:
         enabled: false
-      enabled: true
+      enabled: false
     authz:
       groupMembership:
         service: EXTERNAL
