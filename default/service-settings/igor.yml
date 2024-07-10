@@ -7,6 +7,9 @@ artifactId: quay.io/opsmxpublic/ubi8-spin-igor:75231dd-10
   #useExecHealthCheck: true
   #customHealthCheckExecCommands: ["wget", "--no-check-certificate", "--spider", "-q", "http://localhost:8088/health"]
   #volumes:
+  #- id: oes-cacerts
+    #type: secret
+    #mountPath: /etc/pki/ca-trust/extracted/java
 #env:
   #http_proxy: "http://proxy.config.pcp.local:3128"
   #https_proxy: "http://proxy.config.pcp.local:3128"
