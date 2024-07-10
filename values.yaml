@@ -9,7 +9,7 @@ halyard:
       type: stash # git, bitbucket-stash or S3, please use another template for github/stash
       baseUrlHostName: bitbucket.visa.com # Specify the Base FQDN of your repository without the protocol
       organization: GIT_ORGANIZATION
-      projectName:  GIT_PROJECT_NAME  # Specify project name only if repo is under a project
+      projectName: GIT_PROJECT_NAME  # Specify project name only if repo is under a project
       repository: oss-repo # repo name for GitOps Halyard (Sample Reference: https://github.com/OpsMx/sample-gitops-repo.git).
       halConfigBranch: main # Branch under which halyard config is present under above repository
       halConfigPath: / #relative path from repository root folder
