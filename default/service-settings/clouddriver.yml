@@ -7,7 +7,10 @@ artifactId: quay.io/opsmxpublic/ubi8-spin-clouddriver:4a2e87da5-30
     #prometheus.io/scrape: 'true'
   #useExecHealthCheck: true
   #customHealthCheckExecCommands: ["wget", "--no-check-certificate", "--spider", "-q", "http://localhost:8008/health"]
-
+  #volumes:
+  #- id: oes-cacerts
+    #type: secret
+    #mountPath: /etc/pki/ca-trust/extracted/java
 #env:
   #http_proxy: "http://proxy.config.pcp.local:3128"
   #https_proxy: "http://proxy.config.pcp.local:3128"
