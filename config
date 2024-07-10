@@ -208,6 +208,7 @@ deploymentConfigurations:
     uiSecurity:
       ssl:
         enabled: false
+      overrideBaseUrl: http://localhost:9000
     authn:
       oauth2:
         enabled: false
