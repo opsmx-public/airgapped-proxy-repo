@@ -1,3 +1,6 @@
+global:
+  customImages:
+    registry: quay.io/opsmxpublic
 redis:
   replica:
     replicaCount: 1
