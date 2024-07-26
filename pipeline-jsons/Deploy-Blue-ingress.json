@@ -1,0 +1,206 @@
+{
+  "appConfig": {},
+  "disabled": false,
+  "keepWaitingPipelines": false,
+  "lastModifiedBy": "anoop@opsmx.io",
+  "limitConcurrent": true,
+  "parameterConfig": [
+    {
+      "default": "v1",
+      "description": "",
+      "hasOptions": false,
+      "label": "",
+      "name": "release",
+      "options": [
+        {
+          "value": ""
+        }
+      ],
+      "pinned": false,
+      "required": false
+    },
+    {
+      "default": "nginx-svc",
+      "description": "",
+      "hasOptions": false,
+      "label": "",
+      "name": "service_name",
+      "options": [
+        {
+          "value": ""
+        }
+      ],
+      "pinned": false,
+      "required": false
+    }
+  ],
+  "schema": "1",
+  "spelEvaluator": "v4",
+  "stages": [
+    {
+      "account": "wu-deploy",
+      "cloudProvider": "kubernetes",
+      "manifestArtifact": {
+        "artifactAccount": "opsmxdemo_account",
+        "id": "9924f7cc-7079-4b85-91f3-1dc214ecb12d",
+        "name": "kubedeploys/blue-ingress-deploy.yml",
+        "reference": "https://api.github.com/repos/opsmx/sample-pipeline-manifest/contents/kubedeploys/blue-ingress-deploy.yml",
+        "type": "embedded/base64",
+        "version": "main"
+      },
+      "manifests": [
+        {
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          "metadata": {
+            "labels": {
+              "release": "${parameters.release}"
+            },
+            "name": "nginx-deployment-${parameters.release}"
+          },
+          "spec": {
+            "minReadySeconds": 5,
+            "replicas": 1,
+            "selector": {
+              "matchLabels": {
+                "app": "nginx",
+                "release": "${parameters.release}"
+              }
+            },
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "nginx",
+                  "release": "${parameters.release}"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "env": [
+                      {
+                        "name": "APP_COLOR",
+                        "value": "blue"
+                      }
+                    ],
+                    "image": "quay.io/opsmxpublic/simple-webapp:${parameters.release}",
+                    "name": "simple-webapp",
+                    "ports": [
+                      {
+                        "containerPort": 8080
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Service",
+          "metadata": {
+            "name": "${parameters.service_name}"
+          },
+          "spec": {
+            "ports": [
+              {
+                "port": 80,
+                "protocol": "TCP",
+                "targetPort": 8080
+              }
+            ],
+            "selector": {
+              "app": "nginx",
+              "release": "${parameters.release}"
+            }
+          }
+        },
+        {
+          "apiVersion": "networking.k8s.io/v1",
+          "kind": "Ingress",
+          "metadata": {
+            "annotations": {
+              "kubernetes.io/ingress.class": "nginx"
+            },
+            "labels": {
+              "app": "nginx",
+              "release": "${parameters.release}"
+            },
+            "name": "nginx-ingress-${parameters.release}"
+          },
+          "spec": {
+            "rules": [
+              {
+                "host": "bgdemo.autopilot.opsmx.com",
+                "http": {
+                  "paths": [
+                    {
+                      "backend": {
+                        "service": {
+                          "name": "${parameters.service_name}",
+                          "port": {
+                            "number": 80
+                          }
+                        }
+                      },
+                      "pathType": "ImplementationSpecific"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "moniker": {
+        "app": "sampleapp"
+      },
+      "name": "Deploy Blue",
+      "namespaceOverride": "wu-dev",
+      "refId": "1",
+      "requisiteStageRefIds": [
+        "2"
+      ],
+      "skipExpressionEvaluation": false,
+      "source": "text",
+      "trafficManagement": {
+        "enabled": false,
+        "options": {
+          "enableTraffic": false
+        }
+      },
+      "type": "deployManifest"
+    },
+    {
+      "account": "deploy-dev",
+      "app": "multiclouddemo",
+      "cloudProvider": "kubernetes",
+      "kinds": [
+        "ingress"
+      ],
+      "labelSelectors": {
+        "selectors": [
+          {
+            "key": "app",
+            "kind": "EQUALS",
+            "values": [
+              "nginx"
+            ]
+          }
+        ]
+      },
+      "location": "pmalpha-dev",
+      "mode": "label",
+      "name": "Delete (Manifest)",
+      "options": {
+        "cascading": true
+      },
+      "refId": "2",
+      "requisiteStageRefIds": [],
+      "type": "deleteManifest"
+    }
+  ],
+  "triggers": [],
+  "updateTs": "1718033257000"
+}
