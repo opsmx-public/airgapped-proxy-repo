@@ -1,0 +1,604 @@
+{
+  "appConfig": {},
+  "description": "This sample pipeline shows green deployment, where green deployment happens and validates Ingress based traffic and decides to rollback to blue or to retain green",
+  "keepWaitingPipelines": false,
+  "lastModifiedBy": "phani@opsmx.io",
+  "limitConcurrent": true,
+  "parameterConfig": [
+    {
+      "default": "v2",
+      "description": "New Version",
+      "hasOptions": false,
+      "label": "New Release",
+      "name": "green_release",
+      "options": [],
+      "pinned": false,
+      "required": true
+    },
+    {
+      "default": "v1",
+      "description": "Existing Version",
+      "hasOptions": false,
+      "label": "Current Release",
+      "name": "blue_release",
+      "options": [
+        {
+          "value": ""
+        }
+      ],
+      "pinned": false,
+      "required": true
+    },
+    {
+      "default": "nginx-svc",
+      "description": "",
+      "hasOptions": false,
+      "label": "",
+      "name": "service_name",
+      "options": [
+        {
+          "value": ""
+        }
+      ],
+      "pinned": false,
+      "required": true
+    },
+    {
+      "default": "Accept",
+      "description": "",
+      "hasOptions": true,
+      "label": "judgment",
+      "name": "judgment",
+      "options": [
+        {
+          "value": "Accept"
+        },
+        {
+          "value": "Deny"
+        }
+      ],
+      "pinned": false,
+      "required": true
+    },
+    {
+      "default": "Accept",
+      "description": "",
+      "hasOptions": true,
+      "label": "",
+      "name": "judgment50",
+      "options": [
+        {
+          "value": "Accept"
+        },
+        {
+          "value": "Deny"
+        }
+      ],
+      "pinned": false,
+      "required": true
+    }
+  ],
+  "schema": "1",
+  "spelEvaluator": "v4",
+  "stages": [
+    {
+      "account": "wu-deploy",
+      "cloudProvider": "kubernetes",
+      "manifestArtifact": {
+        "artifactAccount": "opsmxdemo_account",
+        "id": "99386da2-1b6d-4d01-9843-48ceff8dcfb4",
+        "name": "kubedeploys/green-ingress-deploy.yml",
+        "reference": "https://api.github.com/repos/opsmx/sample-pipeline-manifest/contents/kubedeploys/green-ingress-deploy.yml",
+        "type": "embedded/base64",
+        "version": "main"
+      },
+      "manifests": [
+        {
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          "metadata": {
+            "labels": {
+              "release": "${parameters.green_release}"
+            },
+            "name": "nginx-deployment-${parameters.green_release}"
+          },
+          "spec": {
+            "minReadySeconds": 5,
+            "selector": {
+              "matchLabels": {
+                "app": "nginx",
+                "release": "${parameters.green_release}"
+              }
+            },
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "nginx",
+                  "release": "${parameters.green_release}"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "env": [
+                      {
+                        "name": "APP_COLOR",
+                        "value": "green"
+                      }
+                    ],
+                    "image": "quay.io/opsmxpublic/simple-webapp:${parameters.green_release}",
+                    "name": "webapp-green",
+                    "ports": [
+                      {
+                        "containerPort": 8080
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "apiVersion": "networking.istio.io/v1",
+          "kind": "DestinationRule",
+          "metadata": {
+            "name": "wu-dr"
+          },
+          "spec": {
+            "host": "nginx-svc.wu-dev.svc.cluster.local",
+            "subsets": [
+              {
+                "labels": {
+                  "release": "${parameters.blue_release}"
+                },
+                "name": "${parameters.blue_release}"
+              },
+              {
+                "labels": {
+                  "release": "${parameters.green_release}"
+                },
+                "name": "${parameters.green_release}"
+              }
+            ]
+          }
+        },
+        {
+          "apiVersion": "networking.istio.io/v1",
+          "kind": "VirtualService",
+          "metadata": {
+            "name": "wu-vs"
+          },
+          "spec": {
+            "gateways": [
+              "wu-gateway"
+            ],
+            "hosts": [
+              "wu.istio.opsmx.net"
+            ],
+            "http": [
+              {
+                "route": [
+                  {
+                    "destination": {
+                      "host": "nginx-svc.wu-dev.svc.cluster.local",
+                      "subset": "${parameters.blue_release}"
+                    },
+                    "weight": 100
+                  },
+                  {
+                    "destination": {
+                      "host": "nginx-svc.wu-dev.svc.cluster.local",
+                      "subset": "${parameters.green_release}"
+                    },
+                    "weight": 0
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "moniker": {
+        "app": "multiclouddemo"
+      },
+      "name": "Deploy New Version",
+      "namespaceOverride": "wu-dev",
+      "refId": "1",
+      "requisiteStageRefIds": [],
+      "skipExpressionEvaluation": false,
+      "source": "text",
+      "trafficManagement": {
+        "enabled": false,
+        "options": {
+          "enableTraffic": false
+        }
+      },
+      "type": "deployManifest"
+    },
+    {
+      "account": "wu-deploy",
+      "app": "multiclouddemo",
+      "cloudProvider": "kubernetes",
+      "kinds": [
+        "deployment"
+      ],
+      "labelSelectors": {
+        "selectors": [
+          {
+            "key": "release",
+            "kind": "EQUALS",
+            "values": [
+              "${parameters.green_release}"
+            ]
+          }
+        ]
+      },
+      "location": "wu-dev",
+      "mode": "label",
+      "name": "Rollback New Version",
+      "options": {
+        "cascading": true
+      },
+      "refId": "6",
+      "requisiteStageRefIds": [
+        "7"
+      ],
+      "stageEnabled": {
+        "expression": "${#judgment(\"Approve Removing Old Version\") == 'No'}",
+        "type": "expression"
+      },
+      "type": "deleteManifest"
+    },
+    {
+      "failOnFailedExpressions": false,
+      "failPipeline": true,
+      "instructions": "Remove old release ${parameters.blue_release} ?",
+      "judgmentInputs": [
+        {
+          "value": "Yes"
+        },
+        {
+          "value": "No"
+        }
+      ],
+      "name": "Approve Removing Old Version",
+      "notifications": [],
+      "refId": "7",
+      "requisiteStageRefIds": [
+        "18"
+      ],
+      "type": "manualJudgment"
+    },
+    {
+      "account": "wu-deploy",
+      "cloudProvider": "kubernetes",
+      "manifests": [
+        {
+          "apiVersion": "networking.istio.io/v1",
+          "kind": "VirtualService",
+          "metadata": {
+            "name": "wu-vs"
+          },
+          "spec": {
+            "gateways": [
+              "wu-gateway"
+            ],
+            "hosts": [
+              "wu.istio.opsmx.net"
+            ],
+            "http": [
+              {
+                "route": [
+                  {
+                    "destination": {
+                      "host": "nginx-svc.wu-dev.svc.cluster.local",
+                      "subset": "${parameters.blue_release}"
+                    },
+                    "weight": 70
+                  },
+                  {
+                    "destination": {
+                      "host": "nginx-svc.wu-dev.svc.cluster.local",
+                      "subset": "${parameters.green_release}"
+                    },
+                    "weight": 30
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "moniker": {
+        "app": "multiclouddemo"
+      },
+      "name": "Step 1 -Traffic - 30%",
+      "namespaceOverride": "wu-dev",
+      "refId": "10",
+      "requisiteStageRefIds": [
+        "1"
+      ],
+      "skipExpressionEvaluation": false,
+      "source": "text",
+      "trafficManagement": {
+        "enabled": false,
+        "options": {
+          "enableTraffic": false
+        }
+      },
+      "type": "deployManifest"
+    },
+    {
+      "account": "wu-deploy",
+      "app": "multiclouddemo",
+      "cloudProvider": "kubernetes",
+      "location": "wu-dev",
+      "manifestName": "deployment nginx-deployment-${parameters.blue_release}",
+      "mode": "static",
+      "name": "Scale Down Old Version",
+      "options": {
+        "mergeStrategy": "strategic",
+        "record": true
+      },
+      "patchBody": [
+        {
+          "spec": {
+            "replicas": 0
+          }
+        }
+      ],
+      "refId": "14",
+      "requisiteStageRefIds": [
+        "7"
+      ],
+      "source": "text",
+      "stageEnabled": {
+        "expression": "${#judgment(\"Approve Removing Old Version\") == 'Yes'}",
+        "type": "expression"
+      },
+      "type": "patchManifest"
+    },
+    {
+      "account": "wu-deploy",
+      "cloudProvider": "kubernetes",
+      "failOnFailedExpressions": false,
+      "manifests": [
+        {
+          "apiVersion": "networking.istio.io/v1",
+          "kind": "VirtualService",
+          "metadata": {
+            "name": "wu-vs"
+          },
+          "spec": {
+            "gateways": [
+              "wu-gateway"
+            ],
+            "hosts": [
+              "wu.istio.opsmx.net"
+            ],
+            "http": [
+              {
+                "route": [
+                  {
+                    "destination": {
+                      "host": "nginx-svc.wu-dev.svc.cluster.local",
+                      "subset": "${parameters.blue_release}"
+                    },
+                    "weight": 50
+                  },
+                  {
+                    "destination": {
+                      "host": "nginx-svc.wu-dev.svc.cluster.local",
+                      "subset": "${parameters.green_release}"
+                    },
+                    "weight": 50
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "moniker": {
+        "app": "multiclouddemo"
+      },
+      "name": "Step 2 -Traffic -50%",
+      "namespaceOverride": "wu-dev",
+      "refId": "16",
+      "requisiteStageRefIds": [
+        "23"
+      ],
+      "skipExpressionEvaluation": false,
+      "source": "text",
+      "stageEnabled": {
+        "expression": "${parameters.judgment == 'Accept'}",
+        "type": "expression"
+      },
+      "trafficManagement": {
+        "enabled": false,
+        "options": {
+          "enableTraffic": false
+        }
+      },
+      "type": "deployManifest"
+    },
+    {
+      "account": "wu-deploy",
+      "cloudProvider": "kubernetes",
+      "manifests": [
+        {
+          "apiVersion": "networking.istio.io/v1",
+          "kind": "VirtualService",
+          "metadata": {
+            "name": "wu-vs"
+          },
+          "spec": {
+            "gateways": [
+              "wu-gateway"
+            ],
+            "hosts": [
+              "wu.istio.opsmx.net"
+            ],
+            "http": [
+              {
+                "route": [
+                  {
+                    "destination": {
+                      "host": "nginx-svc.wu-dev.svc.cluster.local",
+                      "subset": "${parameters.blue_release}"
+                    },
+                    "weight": 0
+                  },
+                  {
+                    "destination": {
+                      "host": "nginx-svc.wu-dev.svc.cluster.local",
+                      "subset": "${parameters.green_release}"
+                    },
+                    "weight": 100
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "moniker": {
+        "app": "multiclouddemo"
+      },
+      "name": "Step 3 - Traffic - 100%",
+      "namespaceOverride": "wu-dev",
+      "refId": "18",
+      "requisiteStageRefIds": [
+        "24"
+      ],
+      "skipExpressionEvaluation": false,
+      "source": "text",
+      "stageEnabled": {
+        "expression": "${parameters.judgment50 == 'Accept'}",
+        "type": "expression"
+      },
+      "trafficManagement": {
+        "enabled": false,
+        "options": {
+          "enableTraffic": false
+        }
+      },
+      "type": "deployManifest"
+    },
+    {
+      "account": "wu-deploy",
+      "app": "multiclouddemo",
+      "cloudProvider": "kubernetes",
+      "completeOtherBranchesThenFail": false,
+      "continuePipeline": true,
+      "failPipeline": false,
+      "kinds": [
+        "deployment"
+      ],
+      "labelSelectors": {
+        "selectors": [
+          {
+            "key": "release",
+            "kind": "EQUALS",
+            "values": [
+              "${parameters.green_release}"
+            ]
+          }
+        ]
+      },
+      "location": "wu-dev",
+      "mode": "label",
+      "name": "Roll Back New Version",
+      "options": {
+        "cascading": true
+      },
+      "refId": "20",
+      "requisiteStageRefIds": [
+        "23"
+      ],
+      "stageEnabled": {
+        "expression": "${parameters.judgment == 'Deny'}",
+        "type": "expression"
+      },
+      "type": "deleteManifest"
+    },
+    {
+      "account": "wu-deploy",
+      "app": "multiclouddemo",
+      "cloudProvider": "kubernetes",
+      "completeOtherBranchesThenFail": false,
+      "continuePipeline": true,
+      "failPipeline": false,
+      "kinds": [
+        "deployment"
+      ],
+      "labelSelectors": {
+        "selectors": [
+          {
+            "key": "release",
+            "kind": "EQUALS",
+            "values": [
+              "${parameters.green_release}"
+            ]
+          }
+        ]
+      },
+      "location": "wu-dev",
+      "mode": "label",
+      "name": "Roll Back New Version",
+      "options": {
+        "cascading": true
+      },
+      "refId": "21",
+      "requisiteStageRefIds": [
+        "24"
+      ],
+      "stageEnabled": {
+        "expression": "${parameters.judgment50 == 'Deny'}",
+        "type": "expression"
+      },
+      "type": "deleteManifest"
+    },
+    {
+      "failOnFailedExpressions": false,
+      "name": "Approve Roll Forward",
+      "refId": "23",
+      "requisiteStageRefIds": [
+        "10"
+      ],
+      "stageEnabled": {
+        "expression": "${parameters.judgment == 'Accept'}",
+        "type": "expression"
+      },
+      "type": "evaluateVariables",
+      "variables": [
+        {
+          "key": "judgment",
+          "value": "${parameters.judgment == 'Accept'}"
+        }
+      ]
+    },
+    {
+      "failOnFailedExpressions": false,
+      "name": "Approve Forward",
+      "refId": "24",
+      "requisiteStageRefIds": [
+        "16"
+      ],
+      "stageEnabled": {
+        "expression": "${parameters.judgment50 == 'Accept'}",
+        "type": "expression"
+      },
+      "type": "evaluateVariables",
+      "variables": [
+        {
+          "key": "judgment50",
+          "value": "${parameters.judgment50 == 'Accept'}"
+        }
+      ]
+    }
+  ],
+  "triggers": [],
+  "updateTs": "1718089045000"
+}
