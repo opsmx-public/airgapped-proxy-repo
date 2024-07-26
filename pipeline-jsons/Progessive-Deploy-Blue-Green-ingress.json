@@ -1,0 +1,632 @@
+{
+  "appConfig": {},
+  "description": "This sample pipeline shows green deployment, where green deployment happens and validates Ingress based traffic and decides to rollback to blue or to retain green",
+  "keepWaitingPipelines": false,
+  "lastModifiedBy": "anoop@opsmx.io",
+  "limitConcurrent": true,
+  "parameterConfig": [
+    {
+      "default": "v2",
+      "description": "New Version",
+      "hasOptions": false,
+      "label": "New Release",
+      "name": "green_release",
+      "options": [],
+      "pinned": false,
+      "required": true
+    },
+    {
+      "default": "v1",
+      "description": "Existing Version",
+      "hasOptions": false,
+      "label": "Current Release",
+      "name": "blue_release",
+      "options": [
+        {
+          "value": ""
+        }
+      ],
+      "pinned": false,
+      "required": true
+    },
+    {
+      "default": "nginx-svc",
+      "description": "",
+      "hasOptions": false,
+      "label": "",
+      "name": "service_name",
+      "options": [
+        {
+          "value": ""
+        }
+      ],
+      "pinned": false,
+      "required": true
+    }
+  ],
+  "schema": "1",
+  "spelEvaluator": "v4",
+  "stages": [
+    {
+      "account": "deploy-dev",
+      "cloudProvider": "kubernetes",
+      "manifestArtifact": {
+        "artifactAccount": "opsmxdemo_account",
+        "id": "99386da2-1b6d-4d01-9843-48ceff8dcfb4",
+        "name": "kubedeploys/green-ingress-deploy.yml",
+        "reference": "https://api.github.com/repos/opsmx/sample-pipeline-manifest/contents/kubedeploys/green-ingress-deploy.yml",
+        "type": "embedded/base64",
+        "version": "main"
+      },
+      "manifests": [
+        {
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          "metadata": {
+            "labels": {
+              "release": "${parameters.green_release}"
+            },
+            "name": "nginx-deployment-${parameters.green_release}"
+          },
+          "spec": {
+            "minReadySeconds": 5,
+            "selector": {
+              "matchLabels": {
+                "app": "nginx",
+                "release": "${parameters.green_release}"
+              }
+            },
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "nginx",
+                  "release": "${parameters.green_release}"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "env": [
+                      {
+                        "name": "APP_COLOR",
+                        "value": "green"
+                      }
+                    ],
+                    "image": "quay.io/opsmxpublic/simple-webapp:${parameters.green_release}",
+                    "name": "webapp-green",
+                    "ports": [
+                      {
+                        "containerPort": 8080
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Service",
+          "metadata": {
+            "labels": {
+              "release": "${parameters.green_release}"
+            },
+            "name": "${parameters.service_name}-${parameters.green_release}",
+            "namespace": "pmalpha-dev"
+          },
+          "spec": {
+            "ports": [
+              {
+                "port": 80,
+                "protocol": "TCP",
+                "targetPort": 8080
+              }
+            ],
+            "selector": {
+              "app": "nginx",
+              "release": "${parameters.green_release}"
+            }
+          }
+        }
+      ],
+      "moniker": {
+        "app": "multiclouddemo"
+      },
+      "name": "Deploy New Version",
+      "namespaceOverride": "pmalpha-dev",
+      "refId": "1",
+      "requisiteStageRefIds": [],
+      "skipExpressionEvaluation": false,
+      "source": "text",
+      "trafficManagement": {
+        "enabled": false,
+        "options": {
+          "enableTraffic": false
+        }
+      },
+      "type": "deployManifest"
+    },
+    {
+      "account": "deploy-dev",
+      "app": "multiclouddemo",
+      "cloudProvider": "kubernetes",
+      "location": "pmalpha-dev",
+      "manifestName": "ingress nginx-ingress-${parameters.green_release}",
+      "mode": "static",
+      "name": "Designate New Version as Current",
+      "options": {
+        "mergeStrategy": "json",
+        "record": false
+      },
+      "patchBody": [
+        {
+          "op": "remove",
+          "path": "/metadata/annotations/nginx.ingress.kubernetes.io~1canary"
+        },
+        {
+          "op": "remove",
+          "path": "/metadata/annotations/nginx.ingress.kubernetes.io~1canary-weight"
+        }
+      ],
+      "refId": "2",
+      "requisiteStageRefIds": [
+        "14",
+        "15"
+      ],
+      "source": "text",
+      "stageEnabled": {
+        "expression": "${#judgment(\"Approve Removing Old Version\") == 'Yes'}",
+        "type": "expression"
+      },
+      "type": "patchManifest"
+    },
+    {
+      "failPipeline": true,
+      "judgmentInputs": [
+        {
+          "value": "Accept"
+        },
+        {
+          "value": "Reject"
+        }
+      ],
+      "name": "Approve Roll Forward",
+      "notifications": [],
+      "refId": "4",
+      "requisiteStageRefIds": [
+        "10"
+      ],
+      "type": "manualJudgment"
+    },
+    {
+      "account": "deploy-dev",
+      "app": "multiclouddemo",
+      "cloudProvider": "kubernetes",
+      "kinds": [
+        "deployment",
+        "ingress",
+        "service"
+      ],
+      "labelSelectors": {
+        "selectors": [
+          {
+            "key": "release",
+            "kind": "EQUALS",
+            "values": [
+              "${parameters.green_release}"
+            ]
+          }
+        ]
+      },
+      "location": "pmalpha-dev",
+      "mode": "label",
+      "name": "Rollback New Version",
+      "options": {
+        "cascading": true
+      },
+      "refId": "6",
+      "requisiteStageRefIds": [
+        "19"
+      ],
+      "stageEnabled": {
+        "expression": "${#judgment(\"Approve New Version\") == 'Reject'}",
+        "type": "expression"
+      },
+      "type": "deleteManifest"
+    },
+    {
+      "failOnFailedExpressions": false,
+      "failPipeline": true,
+      "instructions": "Remove old release ${parameters.blue_release} ?",
+      "judgmentInputs": [
+        {
+          "value": "Yes"
+        },
+        {
+          "value": "No"
+        }
+      ],
+      "name": "Approve Removing Old Version",
+      "notifications": [],
+      "refId": "7",
+      "requisiteStageRefIds": [
+        "19"
+      ],
+      "stageEnabled": {
+        "expression": "${#judgment(\"Approve New Version\") == 'Accept'}",
+        "type": "expression"
+      },
+      "type": "manualJudgment"
+    },
+    {
+      "account": "deploy-dev",
+      "cloudProvider": "kubernetes",
+      "manifests": [
+        {
+          "apiVersion": "networking.k8s.io/v1",
+          "kind": "Ingress",
+          "metadata": {
+            "annotations": {
+              "kubernetes.io/ingress.class": "nginx",
+              "nginx.ingress.kubernetes.io/canary": "true",
+              "nginx.ingress.kubernetes.io/canary-weight": "30"
+            },
+            "labels": {
+              "app": "nginx",
+              "release": "${parameters.green_release}"
+            },
+            "name": "nginx-ingress-${parameters.green_release}"
+          },
+          "spec": {
+            "rules": [
+              {
+                "host": "bgdemo.autopilot.opsmx.com",
+                "http": {
+                  "paths": [
+                    {
+                      "backend": {
+                        "service": {
+                          "name": "${parameters.service_name}-${parameters.green_release}",
+                          "port": {
+                            "number": 80
+                          }
+                        }
+                      },
+                      "pathType": "ImplementationSpecific"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "moniker": {
+        "app": "multiclouddemo"
+      },
+      "name": "Step 1 -Traffic - 30%",
+      "namespaceOverride": "pmalpha-dev",
+      "refId": "10",
+      "requisiteStageRefIds": [
+        "1"
+      ],
+      "skipExpressionEvaluation": false,
+      "source": "text",
+      "trafficManagement": {
+        "enabled": false,
+        "options": {
+          "enableTraffic": false
+        }
+      },
+      "type": "deployManifest"
+    },
+    {
+      "account": "deploy-dev",
+      "app": "multiclouddemo",
+      "cloudProvider": "kubernetes",
+      "location": "pmalpha-dev",
+      "manifestName": "deployment nginx-deployment-${parameters.blue_release}",
+      "mode": "static",
+      "name": "Scale Down Old Version",
+      "options": {
+        "mergeStrategy": "strategic",
+        "record": true
+      },
+      "patchBody": [
+        {
+          "spec": {
+            "replicas": 0
+          }
+        }
+      ],
+      "refId": "14",
+      "requisiteStageRefIds": [
+        "7"
+      ],
+      "source": "text",
+      "stageEnabled": {
+        "expression": "${#judgment(\"Approve Removing Old Version\") == 'Yes'}",
+        "type": "expression"
+      },
+      "type": "patchManifest"
+    },
+    {
+      "account": "deploy-dev",
+      "app": "multiclouddemo",
+      "cloudProvider": "kubernetes",
+      "location": "pmalpha-dev",
+      "manifestName": "ingress nginx-ingress-${parameters.blue_release}",
+      "mode": "static",
+      "name": "Delete Old Version Ingress",
+      "options": {
+        "cascading": true
+      },
+      "refId": "15",
+      "requisiteStageRefIds": [
+        "7"
+      ],
+      "stageEnabled": {
+        "expression": "${#judgment(\"Approve Removing Old Version\") == 'Yes'}",
+        "type": "expression"
+      },
+      "type": "deleteManifest"
+    },
+    {
+      "account": "deploy-dev",
+      "cloudProvider": "kubernetes",
+      "manifests": [
+        {
+          "apiVersion": "networking.k8s.io/v1",
+          "kind": "Ingress",
+          "metadata": {
+            "annotations": {
+              "kubernetes.io/ingress.class": "nginx",
+              "nginx.ingress.kubernetes.io/canary": "true",
+              "nginx.ingress.kubernetes.io/canary-weight": "50"
+            },
+            "labels": {
+              "app": "nginx",
+              "release": "${parameters.green_release}"
+            },
+            "name": "nginx-ingress-${parameters.green_release}"
+          },
+          "spec": {
+            "rules": [
+              {
+                "host": "bgdemo.autopilot.opsmx.com",
+                "http": {
+                  "paths": [
+                    {
+                      "backend": {
+                        "service": {
+                          "name": "${parameters.service_name}-${parameters.green_release}",
+                          "port": {
+                            "number": 80
+                          }
+                        }
+                      },
+                      "pathType": "ImplementationSpecific"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "moniker": {
+        "app": "multiclouddemo"
+      },
+      "name": "Step 2 -Traffic -50%",
+      "namespaceOverride": "pmalpha-dev",
+      "refId": "16",
+      "requisiteStageRefIds": [
+        "4"
+      ],
+      "skipExpressionEvaluation": false,
+      "source": "text",
+      "stageEnabled": {
+        "expression": "${#judgment(\"Approve Roll Forward\") == 'Accept'}",
+        "type": "expression"
+      },
+      "trafficManagement": {
+        "enabled": false,
+        "options": {
+          "enableTraffic": false
+        }
+      },
+      "type": "deployManifest"
+    },
+    {
+      "failPipeline": true,
+      "judgmentInputs": [
+        {
+          "value": "Accept"
+        },
+        {
+          "value": "Reject"
+        }
+      ],
+      "name": "Approve Forward",
+      "notifications": [],
+      "refId": "17",
+      "requisiteStageRefIds": [
+        "16"
+      ],
+      "stageEnabled": {
+        "expression": "${#judgment(\"Approve Roll Forward\") == 'Accept'}",
+        "type": "expression"
+      },
+      "type": "manualJudgment"
+    },
+    {
+      "account": "deploy-dev",
+      "cloudProvider": "kubernetes",
+      "manifests": [
+        {
+          "apiVersion": "networking.k8s.io/v1",
+          "kind": "Ingress",
+          "metadata": {
+            "annotations": {
+              "kubernetes.io/ingress.class": "nginx",
+              "nginx.ingress.kubernetes.io/canary": "true",
+              "nginx.ingress.kubernetes.io/canary-weight": "100"
+            },
+            "labels": {
+              "app": "nginx",
+              "release": "${parameters.green_release}"
+            },
+            "name": "nginx-ingress-${parameters.green_release}"
+          },
+          "spec": {
+            "rules": [
+              {
+                "host": "bgdemo.autopilot.opsmx.com",
+                "http": {
+                  "paths": [
+                    {
+                      "backend": {
+                        "service": {
+                          "name": "${parameters.service_name}-${parameters.green_release}",
+                          "port": {
+                            "number": 80
+                          }
+                        }
+                      },
+                      "pathType": "ImplementationSpecific"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "moniker": {
+        "app": "multiclouddemo"
+      },
+      "name": "Step 3 - Traffic - 100%",
+      "namespaceOverride": "pmalpha-dev",
+      "refId": "18",
+      "requisiteStageRefIds": [
+        "17"
+      ],
+      "skipExpressionEvaluation": false,
+      "source": "text",
+      "stageEnabled": {
+        "expression": "${#judgment(\"Approve Forward\") == 'Accept'}",
+        "type": "expression"
+      },
+      "trafficManagement": {
+        "enabled": false,
+        "options": {
+          "enableTraffic": false
+        }
+      },
+      "type": "deployManifest"
+    },
+    {
+      "failPipeline": true,
+      "judgmentInputs": [
+        {
+          "value": "Accept"
+        },
+        {
+          "value": "Reject"
+        }
+      ],
+      "name": "Approve New Version",
+      "notifications": [],
+      "refId": "19",
+      "requisiteStageRefIds": [
+        "18"
+      ],
+      "stageEnabled": {
+        "expression": "${#judgment(\"Approve Forward\") == 'Accept'}",
+        "type": "expression"
+      },
+      "type": "manualJudgment"
+    },
+    {
+      "account": "deploy-dev",
+      "app": "multiclouddemo",
+      "cloudProvider": "kubernetes",
+      "completeOtherBranchesThenFail": false,
+      "continuePipeline": true,
+      "failPipeline": false,
+      "kinds": [
+        "deployment",
+        "service",
+        "ingress"
+      ],
+      "labelSelectors": {
+        "selectors": [
+          {
+            "key": "release",
+            "kind": "EQUALS",
+            "values": [
+              "${parameters.green_release}"
+            ]
+          }
+        ]
+      },
+      "location": "pmalpha-dev",
+      "mode": "label",
+      "name": "Roll Back New Version",
+      "options": {
+        "cascading": true
+      },
+      "refId": "20",
+      "requisiteStageRefIds": [
+        "4"
+      ],
+      "stageEnabled": {
+        "expression": "${#judgment(\"Approve Roll Forward\") == 'Reject'}",
+        "type": "expression"
+      },
+      "type": "deleteManifest"
+    },
+    {
+      "account": "deploy-dev",
+      "app": "multiclouddemo",
+      "cloudProvider": "kubernetes",
+      "completeOtherBranchesThenFail": false,
+      "continuePipeline": true,
+      "failPipeline": false,
+      "kinds": [
+        "deployment",
+        "service",
+        "ingress"
+      ],
+      "labelSelectors": {
+        "selectors": [
+          {
+            "key": "release",
+            "kind": "EQUALS",
+            "values": [
+              "${parameters.green_release}"
+            ]
+          }
+        ]
+      },
+      "location": "pmalpha-dev",
+      "mode": "label",
+      "name": "Roll Back New Version",
+      "options": {
+        "cascading": true
+      },
+      "refId": "21",
+      "requisiteStageRefIds": [
+        "17"
+      ],
+      "stageEnabled": {
+        "expression": "${#judgment(\"Approve Forward\") == 'Reject'}",
+        "type": "expression"
+      },
+      "type": "deleteManifest"
+    }
+  ],
+  "triggers": [],
+  "updateTs": "1718033258000"
+}
