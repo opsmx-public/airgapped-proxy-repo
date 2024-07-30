@@ -2,7 +2,7 @@
   "appConfig": {},
   "description": "This is a pipeline that will execute the kubectl command as: kubectl --kubeconfig <file in the secret named kubeconfig> -n <namespace>  <cmd>  <type> <name> e.g. kubectl --kubeconfig FILE delete job xxx-yyy.\n\nThe secret containing the kubeconfig-file needs be created as:\nkubectl -n <ISD namespace> create secret generic kubeconfig --from-file kubefile=Your-kubeconfig-file\n",
   "keepWaitingPipelines": false,
-  "lastModifiedBy": "shekinah.dadala@opsmx.io",
+  "lastModifiedBy": "srinivas@opsmx.io",
   "limitConcurrent": true,
   "parameterConfig": [
     {
@@ -37,6 +37,9 @@
         },
         {
           "value": "hpa"
+        },
+        {
+          "value": "deploy"
         }
       ],
       "pinned": true,
@@ -180,5 +183,5 @@
     }
   ],
   "triggers": [],
-  "updateTs": "1720986429000"
+  "updateTs": "1722327921000"
 }
