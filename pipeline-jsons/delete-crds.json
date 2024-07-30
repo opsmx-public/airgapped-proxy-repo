@@ -1,0 +1,184 @@
+{
+  "appConfig": {},
+  "description": "This is a pipeline that will execute the kubectl command as: kubectl --kubeconfig <file in the secret named kubeconfig> -n <namespace>  <cmd>  <type> <name> e.g. kubectl --kubeconfig FILE delete job xxx-yyy.\n\nThe secret containing the kubeconfig-file needs be created as:\nkubectl -n <ISD namespace> create secret generic kubeconfig --from-file kubefile=Your-kubeconfig-file\n",
+  "keepWaitingPipelines": false,
+  "lastModifiedBy": "shekinah.dadala@opsmx.io",
+  "limitConcurrent": true,
+  "parameterConfig": [
+    {
+      "default": "delete",
+      "description": "kubectl \"command\" e.g. get, delete",
+      "hasOptions": true,
+      "label": "kubectl-command",
+      "name": "cmd",
+      "options": [
+        {
+          "value": "get"
+        },
+        {
+          "value": "delete"
+        }
+      ],
+      "pinned": true,
+      "required": true
+    },
+    {
+      "default": "scaledobjects",
+      "description": "Object type e.g. job, deploy",
+      "hasOptions": true,
+      "label": "object-type",
+      "name": "type",
+      "options": [
+        {
+          "value": "job"
+        },
+        {
+          "value": "scaledobjects"
+        },
+        {
+          "value": "hpa"
+        }
+      ],
+      "pinned": true,
+      "required": true
+    },
+    {
+      "default": "",
+      "description": "Name of the object to execute on e.g. deployment-name, job-name",
+      "hasOptions": false,
+      "label": "object-name",
+      "name": "name",
+      "options": [
+        {
+          "value": ""
+        }
+      ],
+      "pinned": false,
+      "required": true
+    },
+    {
+      "default": "rixiya",
+      "description": "Object namespace, Valid value MUST be provided even if it is cluster resource",
+      "hasOptions": false,
+      "label": "object-namespace",
+      "name": "namespace",
+      "options": [
+        {
+          "value": ""
+        }
+      ],
+      "pinned": false,
+      "required": true
+    }
+  ],
+  "schema": "1",
+  "spelEvaluator": "v4",
+  "stages": [
+    {
+      "account": "default",
+      "alias": "runJob",
+      "application": "ldap",
+      "cloudProvider": "kubernetes",
+      "comments": "Execute the kubectl command as a job. Edit \" namespace: rixiya\" to where ISD is installed. Ensure that the secret contains the kubeconfig file of the target cluster with a \"key\" as \"kubefile\".",
+      "consumeArtifactSource": "none",
+      "credentials": "default",
+      "manifest": {
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {
+          "generateName": "delcrd-",
+          "labels": {
+            "stage": "opsmx-custom",
+            "stage-type": "deletecrd"
+          },
+          "namespace": "rixiya"
+        },
+        "spec": {
+          "backoffLimit": 0,
+          "template": {
+            "spec": {
+              "containers": [
+                {
+                  "command": [
+                    "kubectl",
+                    "--kubeconfig",
+                    "/tmp/kube/kubefile",
+                    "-n",
+                    "${parameters.namespace}",
+                    "${parameters.cmd}",
+                    "${parameters.type}",
+                    "${parameters.name}"
+                  ],
+                  "image": "bitnami/kubectl:1.28.11-debian-12-r5",
+                  "name": "kubectl",
+                  "volumeMounts": [
+                    {
+                      "mountPath": "/tmp/kube/",
+                      "name": "kubeconfig-volume"
+                    }
+                  ]
+                }
+              ],
+              "restartPolicy": "Never",
+              "volumes": [
+                {
+                  "name": "kubeconfig-volume",
+                  "secret": {
+                    "secretName": "kubeconfig"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "name": "Run Job (Manifest)",
+      "refId": "1",
+      "requisiteStageRefIds": [
+        "3"
+      ],
+      "source": "text",
+      "type": "runJobManifest"
+    },
+    {
+      "comments": "This stage will display the parameters provided, for debugging/reference",
+      "failOnFailedExpressions": true,
+      "name": "ShowVariables",
+      "refId": "2",
+      "requisiteStageRefIds": [],
+      "type": "evaluateVariables",
+      "variables": [
+        {
+          "key": "cmd",
+          "value": "${parameters.cmd}"
+        },
+        {
+          "key": "type",
+          "value": "${parameters.type}"
+        },
+        {
+          "key": "name",
+          "value": "${parameters.name}"
+        },
+        {
+          "key": "namespace",
+          "value": "${parameters.namespace}"
+        }
+      ]
+    },
+    {
+      "failPipeline": true,
+      "instructions": "Press \"Continue\" to delete the CRD: \n\nkubectl [kubeconfig] -n ${parameters.namespace} ${parameters.cmd} ${parameters.type} ${parameters.name}",
+      "judgmentInputs": [],
+      "name": "DeleteConfirmed?",
+      "notifications": [],
+      "refId": "3",
+      "requisiteStageRefIds": [
+        "2"
+      ],
+      "type": "manualJudgment"
+    }
+  ],
+  "triggers": [],
+  "updateTs": "1720986429000"
+}
